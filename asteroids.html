@@ -1,0 +1,333 @@
+<body style="margin:0px;">
+<canvas id='canvas' width='800' height="600"></canvas>
+</body>
+
+<script type="text/javascript">
+
+// Ben Dreier
+// 2017
+
+c = document.getElementById("canvas");
+ctx = c.getContext('2d');
+
+// Make full-windowed
+canvas.width = document.body.clientWidth;
+canvas.height = document.body.clientHeight;
+
+width=c.width;
+height=c.height;
+
+x=width/2;
+y=width/2;
+xv=yv=0;
+dir=angle=0;
+sqlen=50;
+maxspeed=5;
+accel=.2;
+
+init();
+
+function init(){
+	window.requestAnimationFrame(game);
+}
+
+window.onload = function() {
+	rspeed=0.1;
+	//x=(height-sqlen)/2;
+	//y=(width-sqlen)/2;
+}
+
+deltaTime=1/30;
+
+function game(){
+	keyEvents();
+	clear();
+	drawAsteroids();
+	drawShip(x,y,angle);
+	drawBullets();
+	drawInfo();
+	x+=xv;
+	y+=yv;
+	//wrap
+	if(x<0){
+		x=width;
+	}
+	if(x>width){
+		x=0;
+	}
+	if(y<0){
+		y=height;
+	}
+	if(y>height){
+		y=0;
+	}
+
+	window.setTimeout(window.requestAnimationFrame(game), 1000*deltaTime);
+}
+
+isfiring = false;
+
+function drawShip(x,y,angle){
+	shipangle=0.7;
+	shiplen=30;
+
+	ctx.fillStyle = "white";
+	ctx.beginPath();
+	ctx.moveTo(x,y);
+	ctx.lineWidth = 3;
+	ctx.strokeStyle = "white";
+	ctx.lineTo(x-(shiplen*Math.cos(angle-shipangle/2)),y-(shiplen*Math.sin(angle-shipangle/2)));
+	ctx.lineTo(x-(shiplen*Math.cos(angle+shipangle/2)),y-(shiplen*Math.sin(angle+shipangle/2)));
+	ctx.strokeStyle = "white";
+	ctx.closePath();
+	ctx.stroke();
+	if(isfiring){
+		ctx.fillStyle = "red";
+		ctx.fill();
+	}
+}
+
+keys = [];
+window.addEventListener("keydown", function (e) {
+  keys[e.keyCode] = true;
+});
+window.addEventListener("keyup", function (e) {
+  keys[e.keyCode] = false;
+});
+
+function keyEvents(){
+	if(keys[37]){
+		angle-=rspeed;
+		angle = angle%(2*Math.PI);
+	}
+	if(keys[38]){
+		//accelerate forwards
+		newxv = xv+accel*Math.cos(angle);
+		newyv = yv+accel*Math.sin(angle);
+		newmag=mag(newxv, newyv);
+		if(newmag<maxspeed){
+			xv=newxv;
+			yv=newyv;
+		}
+		else{
+			vnorm=norm(newxv, newyv);
+			xv = maxspeed*vnorm[0];
+			yv = maxspeed*vnorm[1];
+		}
+
+		isfiring = true;
+	}
+	else{
+		isfiring = false;
+	}
+	if(keys[39]){
+		angle+=rspeed;
+		angle = angle%(2*Math.PI);
+	}
+	if(keys[40]){
+		//nothing happens if you press back
+	}
+	if(keys[32]){//space
+		shoot();
+	}
+	else{
+		bulletsfired=0;
+	}
+
+	if(keys[65]){
+		if(aup){
+			spawnAsteroid();
+			aup=false;
+		}
+	}
+	else{
+		aup=true;
+	}
+};
+
+function drawInfo(){
+	ctx.fillText("Bullets: "+bullets.length, 20,20);
+	ctx.fillText("Asteroids: "+asteroids.length,20, 30);
+	ctx.fillText("Average sze: "+averagesize,20,40);
+}
+
+bullets = [];
+bulletspeed=10;
+maxbullets=1000;
+bulletsfired=0;
+
+function shoot(){
+	if(bulletsfired<maxbullets){
+		bullets.push({x:x, y:y, dx:xv, dy:yv, dir:angle});
+		bulletsfired++;
+	}
+}
+
+function drawBullets(){
+	if(bullets.length>0){
+		i=0;
+		while(i<bullets.length){
+			//move bullets
+			bdx=bullets[i].dx + bulletspeed*Math.cos(bullets[i].dir);
+			bdy=bullets[i].dy + bulletspeed*Math.sin(bullets[i].dir);
+			bullets[i].x+=bdx;
+			bullets[i].y+=bdy;
+
+			//draw bullets
+			ctx.fillStyle = "red";
+			ctx.fillRect(bullets[i].x, bullets[i].y, 10, 10);
+
+			// Check collisions with asteroids
+			for(j=0;j<asteroids.length;j++){
+				if(asteroids[j].contains(bullets[i].x, bullets[i].y)){
+					// Hit the asteroid
+					asteroids[j].size -= 1;
+					if(asteroids[j].size < 5){
+						asteroids.splice(j, 1);
+						j--;
+					}
+					// Kill the bullet
+					bullets.splice(i, 1);
+					i--;
+				}
+			}
+
+			//check edges
+			if(bullets[i].x<0|bullets[i].y<0|bullets[i].x>width|bullets[i].y>height){
+				bullets.splice(i,1);
+			}
+			else{
+				i++;
+			}
+		}
+	}
+}
+
+asteroids = [];
+maxasteroidvel = 2;
+averagesize = 0;
+
+function spawnAsteroid(){
+	size = 30+Math.random()*100; //30-130
+	dx = (2*Math.random()-1)*maxasteroidvel; //functional max speed is maxvel * sqrt(2)
+	dy = (2*Math.random()-1)*maxasteroidvel;
+	// if(Math.random<0.5){
+	// 	ax=Math.round(Math.random())*width;
+	// 	ay=Math.random()*height;
+	// }
+	// else{
+	// 	ay=Math.round(Math.random())*height;
+	// 	ax=Math.random()*height;
+	// }
+	ax=Math.random()*(width-2*size)+size;
+	ay=Math.random()*(height-2*size)+size;
+	asteroids.push({size:size, 
+					x:ax ,
+					y:ay ,
+					dx:dx, 
+					dy:dy, 
+					contains: function(x0, y0){
+						return Math.pow(this.x-x0, 2) + Math.pow(this.y-y0, 2) < this.size*this.size;
+					},
+					overlaps: function(ast){
+						return mag(this.x-ast.x, this.y-ast.y)<=this.size+ast.size;
+					}
+				});
+}
+
+function drawAsteroids(){
+	i=0;
+	averagesize=0;
+	while(i<asteroids.length){
+		//move asteroid
+		asteroids[i].x+=asteroids[i].dx;
+		asteroids[i].y+=asteroids[i].dy;
+
+		//draw asteroid
+		ctx.beginPath();
+		ctx.arc(asteroids[i].x,asteroids[i].y,asteroids[i].size,0,2*Math.PI);
+		ctx.strokeStyle = "white";
+		ctx.stroke();
+
+		r = asteroids[i].size;
+
+		//or make em bounce
+		if(asteroids[i].x<0+r|asteroids[i].x>width-r){
+			asteroids[i].dx *= -1;
+		}
+		if(asteroids[i].y<0+r|asteroids[i].y>height-r){
+			asteroids[i].dy *= -1;
+		}
+
+		//check collisions between asteroids for bounce
+		for(j=i+1;j<asteroids.length;j++){
+			a1=asteroids[i];
+			a2=asteroids[j];
+			if(mag(a1.x-a2.x, a1.y-a2.y)<=a1.size+a2.size){//collision
+				console.log(a1.dx, a1.dy);
+				console.log(a2.dx, a2.dy);
+				ref1=reflectover(a1.dx, a1.dy, a1.x-a2.x, a1.y-a2.y);
+				ref2=reflectover(a2.dx, a2.dy, a1.x-a2.x, a1.y-a2.y);
+				console.log(ref1[0], ref1[1]);
+				console.log(ref2[0], ref2[1]);
+				asteroids[i].dx=ref1[0];
+				asteroids[i].dy=ref1[1];
+				asteroids[j].dx=ref2[0];
+				asteroids[j].dy=ref2[1];
+
+				//give em a push
+				while(mag(a1.x-a2.x, a1.y-a2.y)<=a1.size+a2.size){
+					asteroids[i].x+=asteroids[i].dx;
+					asteroids[i].y+=asteroids[i].dy;
+					asteroids[j].x+=asteroids[j].dx;
+					asteroids[j].y+=asteroids[j].dy;
+				}
+			}
+		}
+
+		//add to average
+		averagesize+=r;
+
+		i++;
+	}
+	if(asteroids.length>1){
+		averagesize = averagesize/asteroids.length;
+	}
+}
+
+function norm(dx, dy){
+	vmag = mag(dx, dy);
+	return [dx/vmag, dy/vmag];
+}
+
+function mag(x,y){
+	return Math.sqrt(Math.pow(x,2)+Math.pow(y,2));
+}
+
+function reflectover(dx, dy, rdx, rdy){ //vector, reflector
+	normr=norm(rdx,rdy);
+	rdx=normr[0];
+	rdy=normr[1];
+	console.log("incidence", dx, dy);
+	console.log("reflector", rdx, rdy);
+	dot=dx*rdx + dy*rdy;
+	console.log("dot", dot);
+	return [dx + -2*dot*rdx, dy + -2*dot*rdy];
+}
+
+window.addEventListener('resize', function(e){
+	canvas.width = document.body.clientWidth;
+	canvas.height = document.body.clientHeight;
+	width=c.width;
+	height=c.height;
+});
+
+function clear(){
+	oldStyle = ctx.fillStyle;
+	ctx.fillStyle = "black"; //background color
+	ctx.fillRect(0,0,width,height);
+	ctx.fillStyle = oldStyle;
+}
+
+
+</script>

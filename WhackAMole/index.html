@@ -1,0 +1,28 @@
+<html>
+
+<head>
+	<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.4.1/css/bootstrap.min.css" integrity="sha384-Vkoo8x4CGsO3+Hhxv8T/Q5PaXtkKtu6ug5TOeNV6gBiFeWPGFN9MuhOf23Q9Ifjh" crossorigin="anonymous">
+	<link rel="stylesheet" type="text/css" href="style.css">
+	
+</head>
+
+<body style="margin: 0px">
+
+	<div id="setupPane">
+		<h2> Thwack a Pic! </h2>
+		Upload Image: <input type="file" class="form-control-file" accept="image/*">
+		<br>
+		<canvas id="imagePreview" width="200" height="200" style="display: none"></canvas>
+		<br>
+		<input id="startGame" type="button" class="btn btn-success" value="Start Game!">
+	</div>
+
+	<!--<div id="gamePane">-->
+		<canvas id="game"></canvas>
+	<!--</div>-->
+
+</body>
+
+<script src="setup.js"></script>
+<script src="game.js"></script>
+</html>

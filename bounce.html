@@ -1,0 +1,307 @@
+<body style="margin:0px;">
+<canvas id='canvas'></canvas>
+</body>
+<script type="text/javascript">
+/*
+CONTROLS:
+a: drop a ball at the mouse
+b: toggle autodrop
+*/
+
+c = document.getElementById("canvas");
+ctx = c.getContext('2d');
+
+canvas.width = document.body.clientWidth;
+canvas.height = document.body.clientHeight;
+
+width=c.width;
+height=c.height;
+
+mouseX=mouseY=0;
+
+mousedown=false;
+
+deltaTime=1000/30;
+
+GRAVITY=0.5;
+BOUNCE = 0.9; //percent energy conserved
+BALL_RADIUS = 5;
+DROP_RATE = 300;
+
+autodropper = {x:30, y:30, r:10, isDropping:true, isMoving:false};
+
+init();
+
+function init(){
+	window.requestAnimationFrame(game);
+	window.setInterval(autodrop,DROP_RATE);
+}
+
+function game(){
+	keyEvents();
+	clear();
+	drawLines();
+	drawBalls();
+	drawAutodropper();
+	doBallPhysics();
+
+	window.setTimeout(window.requestAnimationFrame(game), 1000*deltaTime);
+}
+
+function drawLines(){
+	ctx.strokeStyle = "white";
+	ctx.lineWidth = 3;
+	if(drawingNewLine){
+		ctx.beginPath();
+		ctx.moveTo(currentLine.x1, currentLine.y1);
+		ctx.lineTo(currentLine.x2, currentLine.y2);
+		ctx.closePath();
+		ctx.stroke();
+	}
+	//draw existing lines
+	for(i=0; i<lines.length; i++){
+		l=lines[i];
+		//console.log(i);
+		ctx.beginPath();
+		ctx.moveTo(l.x1, l.y1);
+		ctx.lineTo(l.x2, l.y2);
+		//ctx.closePath();
+		ctx.stroke();
+	}
+}
+
+balls = [];
+function drawBalls(){
+	ctx.lineWidth=3;
+	ctx.strokeStyle = "white";
+
+	i=0;
+	while(i<balls.length){
+		b = balls[i];
+		ctx.beginPath();
+		ctx.arc(b.x,b.y,b.r,0,2*Math.PI); //full circle
+		ctx.closePath();
+		ctx.stroke();
+
+		//remove if it goes beyond the edge
+		if(b.x<0|b.x>width|b.y>height){
+			balls.splice(i,1);
+		}
+		else{
+			i++;
+		}
+	}
+}
+
+function drawAutodropper(){
+	if(autodropper.isMoving){
+		//thicker line
+		ctx.lineWidth = 4;
+	}
+	else{
+		ctx.lineWidth = 2;
+	}
+
+	ctx.strokeStyle = "black";
+	ctx.beginPath();
+	ctx.arc(autodropper.x, autodropper.y, autodropper.r,0,2*Math.PI);
+	ctx.closePath();
+	ctx.stroke();
+	if(!autodropper.isDropping){
+		ctx.fill();
+	}
+}
+
+function autodrop(){
+	if(autodropper.isDropping){
+		spawnBall(autodropper.x, autodropper.y);
+	}
+}
+
+function spawnBall(x,y){
+	balls.push({x:x, y:y, r:BALL_RADIUS, dx:0, dy:0});
+}
+
+function doBallPhysics(){
+	for(i=0; i<balls.length; i++){
+		b=balls[i];
+
+		b.x+=b.dx;
+		b.y+=b.dy;
+
+		b.dy += GRAVITY;
+
+		for(j=0; j<lines.length; j++){
+			l=lines[j];
+			if(isColliding(b, l)){
+				console.log("collision");
+				s = slope(l);
+				nx= 1 ;
+				ny= -1/s; //vector normal to the line
+				if(!s){
+					nx=0; ny=1;
+				}
+				if(!ny){
+					ny=0;
+				}
+				reflectedVel = reflectover(b.dx, b.dy, nx, ny);
+				b.dx=BOUNCE*reflectedVel.dx;
+				b.dy=BOUNCE*reflectedVel.dy;
+			}
+		}
+	}
+}
+
+function isColliding(b, l){
+	// if(l.x1==l.x2){
+	// 	if((b.y<=l.y1 && b.y>=l.y2) | (b.y>=l.y1 && b.y<=l.y2)){
+	// 		return b.x+b.r>=l.x1 && b.x-b.r<=l.x1
+	// 	}
+	// }
+
+	if((b.x<=l.x1 && b.x>=l.x2) | (b.x>=l.x1 && b.x<=l.x2)){
+		dist=Math.abs((l.y2-l.y1)*b.x - (l.x2-l.x1)*b.y + l.x2*l.y1 - l.y2*l.x1) / 
+			Math.sqrt(Math.pow(l.y2-l.y1, 2)+Math.pow(l.x2-l.x1, 2));
+		return dist<=b.r+mag(b.dx,b.dy);
+	}
+	else return false;
+}
+
+keys = [];
+window.addEventListener("keydown", function (e) {
+	keys[e.keyCode] = true;
+});
+window.addEventListener("keyup", function (e) {
+	keys[e.keyCode] = false;
+});
+
+movingOffsetX = movingOffsetY = 0; //for smooth dragging
+
+window.addEventListener("mousedown", function (e) {
+	if(!isInRadius(e.clientX, e.clientY, autodropper.x, autodropper.y, autodropper.r)){
+		startLine(e.clientX, e.clientY);
+	}
+	else{
+		autodropper.isMoving = true;
+		movingOffsetY = e.clientY - autodropper.y;
+		movingOffsetX = e.clientX - autodropper.x;
+	}
+	mousedown=true;
+});
+window.addEventListener("mousemove", function (e) {
+	mouseX=e.clientX;
+	mouseY=e.clientY;
+	if(!autodropper.isMoving){
+		updateLine(mouseX, mouseY);
+	}
+	else{
+		autodropper.x = e.clientX - movingOffsetX;
+		autodropper.y = e.clientY - movingOffsetY;
+	}
+});
+window.addEventListener("mouseup", function(e) {
+	if(!autodropper.isMoving){
+		finishLine();
+	}
+	mousedown=false;
+	autodropper.isMoving = false;
+});
+
+currentLine={x1:0,y1:0,x2:0,y2:0};
+lines = [];
+drawingNewLine=false;
+
+function startLine(x,y){
+	console.log("startin");
+	currentLine.x1=currentLine.x2=x;
+	currentLine.y1=currentLine.y2=y;
+	drawingNewLine=true;
+}
+
+function updateLine(x,y){
+	if(drawingNewLine){
+		console.log("updatin");
+		currentLine.x2=x;
+		currentLine.y2=y;
+	}
+}
+
+function finishLine(){
+	console.log("finished line");
+	if(currentLine.x1==currentLine.x2){
+		console.log("vertical!");
+	}
+	if(currentLine.y1==currentLine.y2){
+		console.log("horizontal!");
+	}
+	lines.push({x1:currentLine.x1, x2:currentLine.x2, y1:currentLine.y1, y2:currentLine.y2}); //ugh
+	drawingNewLine=false;
+}
+
+function slope(line){
+	return (line.y2-line.y1)/(line.x2-line.x1);
+}
+
+spawnKeyDown=false;
+function keyEvents(){
+	if(keys[65]){
+		if(!spawnKeyDown){
+			spawnBall(mouseX,mouseY);
+			spawnKeyDown=true;
+		}
+	}
+	else{
+		spawnKeyDown=false;
+	}
+
+	if(keys[66]){
+		if(!toggleKeyDown){
+			autodropper.isDropping = !autodropper.isDropping;
+			toggleKeyDown=true;
+		}
+	}
+	else{
+		toggleKeyDown=false;
+	}
+};
+
+function clear(){
+	oldStyle = ctx.fillStyle;
+	ctx.fillStyle = "lightblue"; //background color
+	ctx.fillRect(0,0,width,height);
+	ctx.fillStyle = oldStyle;
+}
+
+function norm(dx, dy){
+	vmag = mag(dx, dy);
+	return [dx/vmag, dy/vmag];
+}
+
+function mag(x,y){
+	return Math.sqrt(Math.pow(x,2)+Math.pow(y,2));
+}
+
+function reflectover(dx, dy, rdx, rdy){ //vector, reflector
+	normr=norm(rdx,rdy);
+	rdx=normr[0];
+	rdy=normr[1];
+	console.log("incidence", dx, dy);
+	console.log("reflector", rdx, rdy);
+	dot=dx*rdx + dy*rdy;
+	console.log("dot", dot);
+	return {dx:dx + -2*dot*rdx, dy:dy + -2*dot*rdy};
+}
+
+function isInRadius(x1, y1, x2,y2,r){
+	return r>=Math.sqrt(Math.pow(x2-x1, 2) + Math.pow(y2-y1, 2));
+}
+
+window.addEventListener('resize', function(e){
+	canvas.width = document.body.clientWidth;
+	canvas.height = document.body.clientHeight;
+	width=c.width;
+	height=c.height;
+});
+
+
+</script>

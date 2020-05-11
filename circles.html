@@ -1,0 +1,278 @@
+<body style="margin:0px;">
+<canvas id='canvas'></canvas>
+</body>
+<script type="text/javascript">
+
+c = document.getElementById("canvas");
+ctx = c.getContext('2d');
+
+canvas.width = document.body.clientWidth; //document.width is obsolete
+canvas.height = document.body.clientHeight; //document.height is obsolete
+
+width=c.width;
+height=c.height;
+
+asteroids = [];
+maxasteroidvel = 2;
+averagesize = 0;
+
+keys = [];
+
+init();
+
+function init(){
+	window.requestAnimationFrame(game);
+	spawnAsteroidGrid();
+}
+
+window.addEventListener('resize', function(e){
+	canvas.width = document.body.clientWidth; //document.width is obsolete
+	canvas.height = document.body.clientHeight; //document.height is obsolete
+
+	width=c.width;
+	height=c.height;
+});
+
+deltaTime=1/30;
+
+function game(){
+	keyEvents();
+	clear();
+	drawAsteroids();
+	applyFriction();
+	//applyGravity();
+	drawInfo();
+
+	window.setTimeout(window.requestAnimationFrame(game), 1000*deltaTime);
+}
+
+window.addEventListener("keydown", function (e) {
+	keys[e.keyCode] = true;
+});
+window.addEventListener("keyup", function (e) {
+	keys[e.keyCode] = false;
+});
+window.addEventListener("click", function (e) {
+	impulse(e.clientX, e.clientY);
+});
+
+function keyEvents(){
+	if(keys[65]){
+		if(aup){
+			spawnAsteroid();
+			aup=false;
+		}
+	}
+	else{
+		aup=true;
+	}
+};
+
+function drawInfo(){
+	ctx.fillText("Asteroids: "+asteroids.length,20, 30);
+}
+
+function spawnAsteroid(){
+	size = 30+Math.random()*100; //30-130
+	dx = (2*Math.random()-1)*maxasteroidvel;
+	dy = (2*Math.random()-1)*maxasteroidvel;
+	ay=size+Math.random()*(height-2*size);
+	ax=size+Math.random()*(height-2*size);
+	color = getRandomColor();
+	//color = "white";
+	asteroids.push({size:size, x:ax ,y:ay ,dx:dx, dy:dy, color:color});
+}
+
+function spawnAsteroidGrid(){
+	size=25;
+	margin=50;
+	for(i=0;i<(width/(2*size+margin))-1;i++){
+		for(j=0;j<(height/(2*size+margin))-1;j++){
+			//size=Math.random()*50+25;
+			x=margin+(size/2)+i*(2*size+margin);
+			y=margin+(size/2)+j*(2*size+margin);
+
+			dx = 0;//maxasteroidvel*Math.random()*-1;//(2*Math.random()-1)*maxasteroidvel;
+			dy = 0;//(2*Math.random()-1)*maxasteroidvel;
+			color = getRandomColor();
+			//color = "white";
+			asteroids.push({size:size, x:x ,y:y ,dx:dx, dy:dy, color:color});
+		}
+	}
+}
+
+function drawAsteroids(){
+	i=0;
+	while(i<asteroids.length){
+		//move asteroid
+		asteroids[i].x+=asteroids[i].dx;
+		asteroids[i].y+=asteroids[i].dy;
+
+		//draw asteroid
+		ctx.beginPath();
+		ctx.arc(asteroids[i].x,asteroids[i].y,asteroids[i].size,0,2*Math.PI);
+		ctx.strokeStyle = asteroids[i].color; //console.log(asteroids[i].color);
+		ctx.lineWidth = 3;
+		ctx.stroke();
+
+		r = asteroids[i].size;
+
+		//make em bounce on the walls
+		if(asteroids[i].x<0+r){
+			asteroids[i].dx = Math.abs(asteroids[i].dx);
+		}
+		else if(asteroids[i].x>width-r){
+			asteroids[i].dx = -1*Math.abs(asteroids[i].dx);
+		}
+		if(asteroids[i].y<0+r){
+			asteroids[i].dy = Math.abs(asteroids[i].dy);
+		}
+		else if(asteroids[i].y>height-r){
+			asteroids[i].dy = -1*Math.abs(asteroids[i].dy);
+		}
+
+
+		//check collisions between asteroids for bounce
+		for(j=i+1;j<asteroids.length;j++){
+			a1=asteroids[i];
+			a2=asteroids[j];
+			if(mag(a1.x-a2.x, a1.y-a2.y)<=a1.size+a2.size){//collision
+				vels = calculateCollision(a1,a2);
+
+				asteroids[i].dx=vels.v1x;
+				asteroids[i].dy=vels.v1y;
+				asteroids[j].dx=vels.v2x;
+				asteroids[j].dy=vels.v2y;
+
+				//give em a push
+				//this looks cool if u don't include it actually
+				normx = a1.x-a2.x;
+				normy = a1.y-a2.y;
+				maxdist=asteroids[i].size + asteroids[j].size;
+				currdist=mag(normx, normy);
+				pushdist=maxdist-currdist;
+				normnorm=norm(normx, normy);
+				asteroids[i].x+=pushdist*normnorm[0];
+				asteroids[i].y+=pushdist*normnorm[1];
+				asteroids[j].x-=pushdist*normnorm[0];
+				asteroids[j].y-=pushdist*normnorm[1];
+
+				console.log(asteroids[i].color, asteroids[j].color);
+				//swap colors
+				// tcolor = asteroids[i].color;
+				// asteroids[i].color = asteroids[j].color;
+				// asteroids[j].color = tcolor;
+				// console.log(asteroids[i].color, asteroids[j].color);
+				//asteroids[i].color = asteroids[j].color = "grey";
+			}
+		}
+		i++;
+	}
+}
+
+friction = 0.001; //accel in pixels/frame/frame
+
+function applyFriction(){
+	for(i=0; i<asteroids.length; i++){
+		a = asteroids[i];
+		if(Math.abs(a.dx) >= friction | Math.abs(a.dy) >= friction){ //negligible
+			velnorm = norm(asteroids[i].dx,asteroids[i].dy);
+			asteroids[i].dx -= friction * velnorm[0];
+			asteroids[i].dy -= friction * velnorm[1];
+		}
+		else{
+			asteroids[i].dx = 0;
+			asteroids[i].dy = 0;
+		}
+	}
+}
+
+function applyGravity(){
+	gravity=1;
+	for(i=0; i<asteroids.length; i++){
+		asteroids[i].dy+=gravity;
+	}
+}
+
+impulseforce=30000;
+maxforce=10;
+
+function impulse(x, y){
+	for(i=0; i<asteroids.length; i++){
+		dirx = asteroids[i].x - x;
+		diry = asteroids[i].y - y;
+		dist = mag(dirx, diry);
+		amount = impulseforce/Math.pow(dist, 2);
+		if(amount>maxforce){
+			amount=maxforce;
+		}
+		normal=norm(dirx, diry);
+		asteroids[i].dx += amount*normal[0];
+		asteroids[i].dy += amount*normal[1];
+	}
+}
+
+function norm(dx, dy){
+	vmag = mag(dx, dy);
+	return [dx/vmag, dy/vmag];
+}
+
+function mag(x,y){
+	return Math.sqrt(Math.pow(x,2)+Math.pow(y,2));
+}
+
+function reflectover(dx, dy, rdx, rdy){ //vector, reflector
+	normr=norm(rdx,rdy);
+	rdx=normr[0];
+	rdy=normr[1];
+	dot=dx*rdx + dy*rdy;
+	return [dx + -2*dot*rdx, dy + -2*dot*rdy];
+}
+
+function calculateCollision(a1, a2){
+	m1=a1.size;
+	m2=a2.size;
+	v1=mag(a1.dx,a1.dy);
+	v2=mag(a2.dx,a2.dy);
+	t1=Math.acos(a1.dx/mag(a1.dx, a1.dy))*Math.sign(a1.dy);
+	if(!t1){
+		t1=0; //does this work?
+	}
+	t2=Math.acos(a2.dx/mag(a2.dx, a2.dy))*Math.sign(a2.dy);
+	if(!t2){
+		t2=0;
+	}
+	phi=Math.atan((a1.y-a2.y)/(a1.x-a2.x));
+	if(!phi){
+		phi=Math.PI/2;
+	}
+
+	same=(v1*Math.cos(t1-phi)*(m1-m2)+2*m2*v2*Math.cos(t2-phi))/(m1+m2);
+	v1x = (Math.cos(phi)*same)+v1*Math.sin(t1-phi)*Math.cos(phi+Math.PI/2);
+	v1y = (Math.sin(phi)*same)+v1*Math.sin(t1-phi)*Math.sin(phi+Math.PI/2);
+
+	same=(v2*Math.cos(t2-phi)*(m2-m1)+2*m1*v1*Math.cos(t1-phi))/(m2+m1);
+	v2x = (Math.cos(phi)*same)+v2*Math.sin(t2-phi)*Math.cos(phi+Math.PI/2);
+	v2y = (Math.sin(phi)*same)+v2*Math.sin(t2-phi)*Math.sin(phi+Math.PI/2);
+
+	return {v1x:v1x, v1y:v1y, v2x:v2x, v2y:v2y};
+}
+
+function clear(){
+	oldStyle = ctx.fillStyle;
+	ctx.fillStyle = "black"; //background color
+	ctx.fillRect(0,0,width,height);
+	ctx.fillStyle = oldStyle;
+}
+
+function getRandomColor() {
+  var letters = '0123456789ABCDEF';
+  var color = '#';
+  for (var i = 0; i < 6; i++) {
+    color += letters[Math.floor(Math.random() * 16)];
+  }
+  return color;
+}
+
+
+</script>
